@@ -1,0 +1,296 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from '@/lib/router';
+import { Building2, ChevronDown, GitCompareArrows, Heart, LayoutDashboard, LogOut, Menu, MessageSquareText, Plus, X } from 'lucide-react';
+import { NotificationBell } from '../components/layout/NotificationBell';
+import { Logo } from '../components/layout/Brand';
+import { Avatar } from '../components/ui';
+import { StyleToggle } from '../store/StyleContext';
+import { CompareTray } from '../components/interactive/Interactive';
+import { useStore } from '../store/AppStore';
+import { ROLE_META, SITE } from '../config/site';
+import { cn } from '../utils/format';
+import { TYPE_KEYS, VEHICLE_TYPES } from '../data/vehicleTypes';
+
+// Categories come from Admin → Categories, so the menu is built when it renders.
+const buyTypes = () => TYPE_KEYS.map((k) => VEHICLE_TYPES[k]);
+// "Dealers" is a highlighted button of its own (see DealersButton), so it isn't in this list.
+const LINKS = [
+  { to: '/how-it-works', label: 'Sell' },
+  { to: '/loan-calculator', label: 'Loan calculator' },
+  { to: '/verify-vehicle', label: 'Verify a vehicle' },
+  { to: '/support', label: 'Support' },
+];
+
+/** "Buy" menu: one entry per visible vehicle category. */
+function BuyMenu() {
+  const BUY = buyTypes();
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
+  const ref = useRef(null);
+  const active = BUY.some((t) => loc.pathname === t.path || loc.pathname.startsWith(`${t.path}/`));
+  useEffect(() => setOpen(false), [loc.pathname, loc.search]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => !ref.current?.contains(e.target) && setOpen(false);
+    const esc = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-2 text-[14px] font-semibold transition-colors 2xl:px-2.5', active ? 'text-accent-700' : 'text-ink-700 hover:bg-mist-100 hover:text-ink-900')}
+      >
+        Buy <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 top-11 z-50 w-80 animate-fade-up rounded-xl border border-mist-200 bg-white p-1.5 shadow-pop">
+          {BUY.map((t) => (
+            <Link key={t.key} to={t.path} role="menuitem" className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-mist-100">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-mist-100 text-ink-800">
+                <t.icon className="h-[18px] w-[18px]" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink-900">{t.plural}</span>
+                <span className="block text-[12.5px] text-mist-500">{t.tagline}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dealer directory: highlighted like "List your vehicle" so it's easy to find. */
+function DealersButton({ className, size = 'md' }) {
+  const loc = useLocation();
+  const active = loc.pathname.startsWith('/dealers');
+  return (
+    <Link to="/dealers" aria-current={active ? 'page' : undefined} className={cn('btn btn-sun', `btn-${size}`, active && 'ring-2 ring-ink-900 ring-offset-2 ring-offset-white', className)}>
+      <Building2 className="h-4 w-4" /> <span className="max-[339px]:sr-only">Dealers</span>
+    </Link>
+  );
+}
+
+export function Navbar() {
+  const { state, me, role, logout } = useStore();
+  const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const loc = useLocation();
+  const nav = useNavigate();
+  useEffect(() => {
+    setOpen(false);
+    setMenu(false);
+  }, [loc.pathname]);
+  // Sellers go straight to their listing form; everyone else to the Sell page (Private Seller, Agent, Dealer).
+  const sellTo = me && ['seller', 'agent', 'dealer'].includes(role) ? `${ROLE_META[role].home}${role === 'seller' ? '/vehicle' : '/vehicles/new'}` : '/how-it-works';
+
+  return (
+    <header className="sticky z-40 border-b border-mist-200 bg-white/95 backdrop-blur" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="container-page flex h-16 items-center gap-2 sm:gap-4 2xl:gap-6">
+        <Logo className="[&_img]:h-[22px] min-[400px]:[&_img]:h-6 sm:[&_img]:h-7" />
+        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Main">
+          <BuyMenu />
+          <DealersButton size="sm" className="mx-1.5 h-9 px-3.5" />
+          {LINKS.map((l) => (
+            <NavLink key={l.to} to={l.to} className={({ isActive }) => cn('whitespace-nowrap rounded-lg px-2 py-2 text-[14px] font-semibold transition-colors 2xl:px-2.5', isActive ? 'text-accent-700' : 'text-ink-700 hover:bg-mist-100 hover:text-ink-900')}>
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-1 2xl:gap-1.5">
+          <DealersButton size="sm" className="h-9 gap-1.5 px-2.5 sm:hidden" />
+          <DealersButton className="mr-1 hidden sm:inline-flex xl:hidden" />
+          <StyleToggle compact className="hidden sm:inline-flex" />
+          <Link to="/compare" className="btn-icon relative hidden sm:inline-flex" aria-label="Compare cars" title="Compare">
+            <GitCompareArrows className="h-[18px] w-[18px]" />
+            {state.compare.length > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-600 px-1 text-[10px] font-bold text-white">{state.compare.length}</span>}
+          </Link>
+          <Link to={role === 'buyer' ? '/buyer/saved' : '/buyer/welcome?next=/buyer/saved'} className={cn('btn-icon relative max-[379px]:hidden', me && 'max-sm:hidden')} aria-label="Saved vehicles" title="Saved vehicles">
+            <Heart className="h-[18px] w-[18px]" />
+            {state.saved.length > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink-900 px-1 text-[10px] font-bold text-white">{state.saved.length}</span>}
+          </Link>
+          {me && role !== 'admin' && <NotificationBell />}
+          {me ? (
+            <div className="relative max-sm:hidden sm:ml-1">
+              <button type="button" onClick={() => setMenu((m) => !m)} className="flex items-center gap-2 rounded-full p-0.5 hover:bg-mist-100 sm:pr-2" aria-haspopup="menu" aria-expanded={menu}>
+                <Avatar name={me.name} size={32} />
+                <span className="hidden text-[13px] font-semibold text-ink-800 md:block">{me.name.split(' ')[0]}</span>
+              </button>
+              {menu && (
+                <div className="absolute right-0 top-11 w-56 animate-fade-up rounded-xl border border-mist-200 bg-white p-1.5 shadow-pop" role="menu">
+                  <p className="px-2.5 py-2 text-xs text-mist-500">
+                    Signed in as <span className="font-semibold text-ink-800">{ROLE_META[role].label}</span>
+                  </p>
+                  <Link to={ROLE_META[role].home} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium hover:bg-mist-100" role="menuitem">
+                    <LayoutDashboard className="h-4 w-4" /> My dashboard
+                  </Link>
+                  {role !== 'admin' && role !== 'bank' && (
+                    <Link to={role === 'buyer' ? '/buyer/messages' : role === 'agent' ? '/agent/listings?tab=enquiries' : `/${role}/enquiries`} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium hover:bg-mist-100" role="menuitem">
+                      <MessageSquareText className="h-4 w-4" /> {role === 'buyer' ? 'Messages' : 'Enquiries'}
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      nav('/');
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-bad-600 hover:bg-bad-50"
+                    role="menuitem"
+                  >
+                    <LogOut className="h-4 w-4" /> Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <Link to="/signin" className="btn btn-md btn-ghost hidden sm:inline-flex">
+                Sign in
+              </Link>
+              <Link to="/register" className="btn btn-md btn-secondary hidden sm:inline-flex">
+                Register
+              </Link>
+            </>
+          )}
+          <Link to={sellTo} className="btn btn-md btn-primary hidden lg:inline-flex">
+            <Plus className="h-4 w-4" /> List your vehicle
+          </Link>
+          <button type="button" className="btn-icon xl:hidden" onClick={() => setOpen((o) => !o)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+      {open && (
+        <div className="border-t border-mist-200 bg-white xl:hidden">
+          <nav className="container-page flex flex-col gap-1 py-3" aria-label="Mobile">
+            <div className="grid grid-cols-2 gap-2 px-1 pb-2">
+              <DealersButton size="lg" className="w-full px-3" />
+              <Link to={sellTo} className="btn btn-lg btn-primary w-full px-3">
+                <Plus className="h-4 w-4" /> List vehicle
+              </Link>
+            </div>
+            <p className="px-3 pt-1 text-[12px] font-bold uppercase tracking-[0.1em] text-mist-500">Buy</p>
+            <div className="grid grid-cols-3 gap-2 px-1 pb-2">
+              {buyTypes().map((t) => (
+                <NavLink key={t.key} to={t.path} className={({ isActive }) => cn('flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-[13px] font-semibold', isActive ? 'border-accent-500 bg-accent-50 text-accent-700' : 'border-mist-200 text-ink-800')}>
+                  <t.icon className="h-5 w-5" /> {t.plural}
+                </NavLink>
+              ))}
+            </div>
+            {[...LINKS, { to: '/compare', label: `Compare${state.compare.length ? ` (${state.compare.length})` : ''}`, mobileOnly: true }, { to: role === 'buyer' ? '/buyer/saved' : '/buyer/welcome?next=/buyer/saved', label: `Saved vehicles${state.saved.length ? ` (${state.saved.length})` : ''}`, mobileOnly: true }].map((l) => (
+              <NavLink key={l.to} to={l.to} className={({ isActive }) => cn('rounded-lg px-3 py-2.5 text-[15px] font-semibold', l.mobileOnly && 'sm:hidden', isActive ? 'bg-accent-50 text-accent-700' : 'text-ink-800')}>
+                {l.label}
+              </NavLink>
+            ))}
+            <div className="flex items-center justify-between px-3 py-2 sm:hidden">
+              <span className="text-[14px] font-semibold text-ink-800">Light / dark mode</span>
+              <StyleToggle />
+            </div>
+            {me && (
+              <div className="mt-2 space-y-0.5 border-t border-mist-100 pt-3 sm:hidden">
+                <p className="px-3 pb-1 text-[12px] text-mist-500">
+                  Signed in as <span className="font-semibold text-ink-800">{me.name}</span>
+                </p>
+                <Link to={ROLE_META[role].home} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-[15px] font-semibold text-ink-800">
+                  <LayoutDashboard className="h-4 w-4" /> My dashboard
+                </Link>
+                {role !== 'admin' && role !== 'bank' && (
+                  <Link to={role === 'buyer' ? '/buyer/messages' : role === 'agent' ? '/agent/listings?tab=enquiries' : `/${role}/enquiries`} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-[15px] font-semibold text-ink-800">
+                    <MessageSquareText className="h-4 w-4" /> {role === 'buyer' ? 'Messages' : 'Enquiries'}
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    nav('/');
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[15px] font-semibold text-bad-600"
+                >
+                  <LogOut className="h-4 w-4" /> Sign out
+                </button>
+              </div>
+            )}
+            {!me && (
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-mist-100 pt-3">
+                <Link to="/signin" className="btn btn-md btn-secondary">
+                  Sign in
+                </Link>
+                <Link to="/register" className="btn btn-md btn-secondary">
+                  Register
+                </Link>
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
+    </header>
+  );
+}
+
+export function Footer() {
+  const cols = [
+    ['Buy', [...buyTypes().map((t) => [t.plural, t.path]), ['Dealer directory', '/dealers'], ['Compare', '/compare'], ['Loan calculator', '/loan-calculator']]],
+    ['Sell', [['How it works', '/how-it-works'], ['Listing plans', '/how-it-works#plans'], ['Sell as private seller', '/register/seller'], ['Join as agent', '/register/agent'], ['Register as dealer', '/register/dealer']]],
+    ['Help', [['Support & FAQ', '/support'], ['Verify a vehicle', '/verify-vehicle'], ['Create buyer account', '/register/buyer'], ['Buyer sign-in', '/buyer/welcome'], ['Admin console', '/admin/login']]],
+  ];
+  return (
+    <footer className="mt-auto bg-ink-950 text-ink-200">
+      <div className="container-page grid gap-10 py-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+        <div className="max-w-xs space-y-3">
+          <Logo dark />
+          <p className="text-sm text-ink-300">{SITE.tagline}. Contact sellers directly — AutoDealer never takes a cut of the sale price.</p>
+          <p className="text-[13px] text-ink-400">
+            {SITE.supportPhone}
+            <br />
+            {SITE.supportEmail}
+          </p>
+        </div>
+        {cols.map(([title, links]) => (
+          <div key={title}>
+            <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-400">{title}</h3>
+            <ul className="space-y-2">
+              {links.map(([l, to]) => (
+                <li key={to}>
+                  <Link to={to} className="text-sm text-ink-200 hover:text-white">
+                    {l}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-white/10">
+        <div className="container-page flex flex-col gap-2 py-5 text-[12.5px] text-ink-400 md:flex-row md:justify-between">
+          <p>© {new Date().getFullYear()} {SITE.name} Technologies Pvt. Ltd.</p>
+          <p>Listings are published by sellers. "Live" does not mean documents are verified.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export default function PublicLayout() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Navbar />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+      <CompareTray />
+    </div>
+  );
+}
